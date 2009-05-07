@@ -6,4 +6,12 @@ use Rack::Console
 
 == Usage
 
-Run rack_console [host] [port]
+Run rack_console [host] [port]. You'll get a prompt. Here what you can do:
+
+[quit] Quits the console
+[watch] Starts tailing requests
+[stats] Print out current request stats
+[ditch] Throw away collected stats
+[gather] Start recording stats
+[stop] Stop watching requests
+
