@@ -1,0 +1,9 @@
+= Rack::Console
+
+== Installation
+
+use Rack::Console
+
+== Usage
+
+Run rack_console [host] [port]

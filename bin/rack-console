@@ -1,0 +1,114 @@
+#!/usr/bin/env ruby -rubygems
+require 'json'
+require 'net/http'
+
+class RackConsole
+  
+  def initialize(host = '127.0.0.1', port = 3000)
+    @host = host
+    @port = port
+    @http = Net::HTTP.new(@host, @port)
+  end
+  
+  def http_call(cmd, default)
+    json = default
+    @http.get('/', {'X-Rack-Console' => cmd}) do |get|
+      json = case get
+      when 'true'
+        true
+      when 'false'
+        false
+      else
+        JSON.parse(get)
+      end
+    end
+    json
+  end
+  
+  def stats
+    stats = http_call('stats', nil)
+    if stats
+      puts "%-40s %-5s %-8s %-8s" % ['URL', 'Count', 'Time', 'Time/call']
+      stats.sort{|a,b| b.last.inject(0){|sum,v| sum+v} <=> a.last.inject(0){|sum,v| sum+v}}.each do |stat|
+        total_time = stat.last.inject(0){|sum,v| sum+v}
+        puts "%-40s %5d %5.2f %5.2f" % [stat.first, stat.last.size, total_time, total_time / stat.last.size]
+      end
+    else
+      puts "problem with stats"
+    end
+  end
+  
+  def watch
+    @watch_thread = Thread.new do
+      while true
+        begin
+          watch = http_call('watch', [])
+          watch.each do |w|
+            puts "\n%05.2f ====== #{w[1]['REQUEST_METHOD']}: #{w[1]['PATH_INFO']}" % w[0]
+            puts " << env"
+            puts w[1].to_json
+            puts " >> response"
+            puts w[2].to_json
+            puts "\n\n"
+            $stdout.flush
+          end
+        rescue Errno::ECONNREFUSED => err_conn
+           #...
+        rescue Exception => e
+          puts "!!! #{e}"
+          print e.backtrace.join("\n")
+        end
+        sleep(1)
+      end
+    end
+    
+  end
+
+  def clear
+    http_call('clear', false)
+  end
+
+  def stop
+    @watch_thread.kill if @watch_thread && @watch_thread.alive?
+    http_call('stop', false)
+  end
+  
+  def gather
+    http_call('gather', false)
+  end
+  
+  def ditch
+    http_call('ditch', false)
+  end
+  
+  def quit
+    exit
+  end
+end
+
+console = RackConsole.new(ARGV[0], ARGV[1])
+
+while true
+  print ">> "
+  $stdout.flush
+  cmd = gets
+  cmd.strip!
+  case cmd
+  when 'quit'
+    console.quit
+  when 'stats'
+    console.stats
+  when 'clear'
+    puts console.clear ? "stats cleared!" : 'error'
+  when 'gather'
+    puts console.gather ? "gathering turned on" : 'error'
+  when 'ditch'
+    puts console.ditch ? "ditching current stats" : 'error'
+  when 'watch'
+    console.watch
+  when 'stop'
+    puts console.stop ? "stop watching..." : 'error'
+  else
+    puts "unknown command (quit|stats|gather|ditch|watch|stop)"
+  end
+end
